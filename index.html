@@ -1,237 +1,123 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>JAPAY - Gestión de Receptores</title>
-    
-    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
-    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <style>
-        :root {
-            --japay-orange: #e68a22;
-            --japay-gold: #f2b33d;
-        }
-
-        body { font-family: 'Inter', sans-serif; background-color: #fffaf5; margin: 0; padding: 0; }
-        
-        /* Contenedor del mapa optimizado */
-        #map { 
-            height: 75vh; 
-            width: 100%; 
-            border-radius: 15px; 
-            border: 3px solid var(--japay-gold); 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-            background-color: #add8e6; /* Color azul de respaldo mientras carga el mar */
-        }
-
-        .titulo-japay { font-size: 2.3rem; font-weight: 900; color: #1a1a1a; }
-        .subtitulo-japay { font-size: 1.3rem; font-weight: 500; color: #4b5563; }
-
-        /* Botón de carga visible y llamativo */
-        .btn-container {
-            background-color: #fff;
-            padding: 20px;
-            border-radius: 15px;
-            border: 2px solid var(--japay-orange);
-            text-align: center;
-        }
-
-        .btn-input-custom {
-            background-color: var(--japay-orange);
-            color: white;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-weight: bold;
-            cursor: pointer;
-            border: none;
-            display: block;
-            margin: 10px auto 0;
-            transition: background 0.3s;
-        }
-        .btn-input-custom:hover { background-color: #d4791d; }
-
-        /* Marcadores y Etiquetas */
-        .custom-marker { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
-        .marker-label {
-            background: var(--japay-orange);
-            color: white;
-            padding: 2px 6px;
-            border-radius: 4px;
-            font-size: 10px;
-            font-weight: bold;
-            margin-top: 2px;
-            white-space: nowrap;
-            border: 1px solid white;
-        }
-        .marker-icon {
-            width: 35px;
-            height: 35px;
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-        }
-
-        /* Estilo de Cluster */
-        .cluster-marker {
-            background: var(--japay-orange);
-            border: 2px solid white;
-            border-radius: 50%;
-            color: white;
-            font-weight: bold;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-    </style>
-</head>
-<body class="p-4 lg:p-8">
-
-    <div class="max-w-[1700px] mx-auto">
-        <header class="flex flex-col lg:flex-row items-center justify-between gap-6 mb-8 bg-white p-8 rounded-3xl shadow-sm border-t-8 border-orange-500">
-            <div class="flex items-center gap-8">
-                <img src="logos/japay-logo.png" alt="JAPAY" class="h-28">
-                <div>
-                    <h1 class="titulo-japay uppercase tracking-tighter">JAPAY - MAPA EQUIPOS CASHDRO</h1>
-                    <p class="subtitulo-japay">Panel de Gestión de Equipos Receptores</p>
-                </div>
-            </div>
-            
-            <div class="btn-container">
-                <span class="text-xs font-black text-orange-600 uppercase tracking-widest">Cargar Archivo CSV</span>
-                <input type="file" id="csv-file" accept=".csv" class="btn-input-custom">
-            </div>
-        </header>
-
-        <div class="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            <aside class="lg:col-span-3">
-                <div class="bg-white p-6 rounded-2xl shadow-md border-l-8 border-orange-400">
-                    <h2 class="text-xs font-black text-gray-400 uppercase tracking-widest mb-6">Filtros</h2>
-                    <div class="space-y-4 text-sm">
-                        <label class="block font-bold text-orange-700">Zona</label>
-                        <select id="filter-zona" class="w-full p-3 bg-orange-50 border rounded-xl outline-none"></select>
-                        
-                        <label class="block font-bold text-orange-700 mt-4">Marca</label>
-                        <select id="filter-marca" class="w-full p-3 bg-orange-50 border rounded-xl outline-none"></select>
-                    </div>
-                    <div class="mt-8 pt-6 border-t border-orange-100 text-center">
-                        <p class="text-xs font-bold text-gray-400 uppercase">Equipos en Mapa</p>
-                        <span id="counter" class="text-6xl font-black text-orange-500">0</span>
-                    </div>
-                </div>
-            </aside>
-
-            <main class="lg:col-span-9">
-                <div id="map"></div>
-            </main>
-        </div>
-    </div>
-
-   <script>
-    // Tu Token de Mapbox
+<script>
+    // 1. CONFIGURACIÓN INICIAL
     mapboxgl.accessToken = 'pk.eyJ1IjoiamFwYXljYXNoZHJvIiwiYSI6ImNtb2MxOTdhMTA2YjUycHB5eDZ2aTk2ZmgifQ.lbSCt1e6B1pV83Duovn8aQ';
 
     const map = new mapboxgl.Map({
         container: 'map',
         style: 'mapbox://styles/mapbox/streets-v12',
-        center: [-102.55, 23.63],
+        center: [-102.55, 23.63], // Centro de México
         zoom: 5
     });
 
     let allData = [];
     let htmlMarkers = [];
 
-    // 1. EVENTO DE CARGA DEL ARCHIVO
- // En lugar de escuchar un "change" en el input, cargamos al iniciar la página
-window.onload = () => {
-    const urlDelArchivo = 'datos.csv'; // El nombre de tu archivo en el servidor
+    // 2. CARGA AUTOMÁTICA AL ABRIR LA PÁGINA
+    window.onload = () => {
+        const urlAuto = 'datos.csv'; // Asegúrate de que el archivo se llame así en GitHub
 
-    Papa.parse(urlDelArchivo, {
-        download: true, // Esta opción es CLAVE para leer archivos del servidor
-        header: true,
-        skipEmptyLines: true,
-        complete: function(results) {
-            allData = results.data;
-            updateMapData(allData); 
-            populateFilters(allData);
-            console.log("Datos cargados automáticamente desde el servidor");
-        },
-        error: function(err) {
-            console.error("Error al cargar el archivo CSV automático:", err);
-        }
+        Papa.parse(urlAuto, {
+            download: true,
+            header: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                console.log("Datos cargados automáticamente:", results.data);
+                allData = results.data;
+                processData(allData);
+            },
+            error: function(err) {
+                console.warn("No se encontró el archivo automático datos.csv. Usa el botón de carga manual.");
+            }
+        });
+    };
+
+    // 3. CARGA MANUAL (Por si necesitas subir un archivo nuevo sin actualizar GitHub)
+    document.getElementById('csv-file').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                allData = results.data;
+                processData(allData);
+            }
+        });
     });
-};
 
-    // 2. FUNCIÓN PARA ACTUALIZAR MARCADORES Y CONTADOR
+    // 4. LÓGICA DE PROCESAMIENTO (Marcadores y Filtros)
+    function processData(data) {
+        updateMapData(data);
+        populateFilters(data);
+    }
+
     function updateMapData(data) {
-        // Limpiar marcadores previos del mapa
         htmlMarkers.forEach(m => m.remove());
         htmlMarkers = [];
 
-        // Actualizar el número en pantalla (Contador)
-        const counterElement = document.getElementById('counter');
-        if (counterElement) {
-            counterElement.innerText = data.length;
-        }
+        // Filtramos solo los que tienen coordenadas válidas
+        const validPoints = data.filter(item => item.Latitud && item.Longitud);
+        
+        document.getElementById('counter').innerText = validPoints.length;
 
-        // Crear los marcadores con los logos y nombres
-        data.forEach(item => {
-            if (item.Longitud && item.Latitud) {
-                const el = document.createElement('div');
-                el.className = 'custom-marker';
-                
-                const icon = document.createElement('div');
-                icon.className = 'marker-icon';
-                icon.style.backgroundImage = `url(${item.Imagen_URL})`;
-                
-                const label = document.createElement('div');
-                label.className = 'marker-label';
-                label.innerText = item.Cliente || 'Sin nombre';
+        validPoints.forEach(item => {
+            const el = document.createElement('div');
+            el.className = 'custom-marker';
+            
+            const icon = document.createElement('div');
+            icon.className = 'marker-icon';
+            // Si no hay imagen, usamos un logo por defecto
+            const imgUrl = item.Imagen_URL || 'logos/japay-logo.png';
+            icon.style.backgroundImage = `url(${imgUrl})`;
+            
+            const label = document.createElement('div');
+            label.className = 'marker-label';
+            label.innerText = item.Cliente || 'Equipo';
 
-                el.appendChild(icon);
-                el.appendChild(label);
+            el.appendChild(icon);
+            el.appendChild(label);
 
-                const marker = new mapboxgl.Marker(el)
-                    .setLngLat([parseFloat(item.Longitud), parseFloat(item.Latitud)])
-                    .setPopup(new mapboxgl.Popup().setHTML(`<b>${item.Cliente}</b><br>ID: ${item.ID}`))
-                    .addTo(map);
-                
-                htmlMarkers.push(marker);
-            }
+            const marker = new mapboxgl.Marker(el)
+                .setLngLat([parseFloat(item.Longitud), parseFloat(item.Latitud)])
+                .setPopup(new mapboxgl.Popup().setHTML(`
+                    <div class="p-2">
+                        <strong class="text-orange-600">${item.Cliente}</strong><br>
+                        <small>ID: ${item.ID}</small><br>
+                        <p class="text-xs mt-1">${item.Marca || ''} - ${item.Zona || ''}</p>
+                    </div>
+                `))
+                .addTo(map);
+            
+            htmlMarkers.push(marker);
         });
+
+        // Si hay puntos, centrar el mapa en el primero
+        if (validPoints.length > 0) {
+            map.flyTo({
+                center: [parseFloat(validPoints[0].Longitud), parseFloat(validPoints[0].Latitud)],
+                zoom: 6
+            });
+        }
     }
 
-    // 3. FUNCIÓN PARA LLENAR LOS SELECTORES DE FILTRO
     function populateFilters(data) {
         const zS = document.getElementById('filter-zona');
         const mS = document.getElementById('filter-marca');
 
-        // Obtener valores únicos eliminando vacíos
         const zonas = [...new Set(data.map(i => i.Zona).filter(Boolean))].sort();
         const marcas = [...new Set(data.map(i => i.Marca).filter(Boolean))].sort();
 
-        // Llenar select de Zonas
         zS.innerHTML = '<option value="all">Todas las Zonas</option>';
         zonas.forEach(z => {
-            const opt = document.createElement('option');
-            opt.value = z;
-            opt.innerText = z;
-            zS.appendChild(opt);
+            zS.innerHTML += `<option value="${z}">${z}</option>`;
         });
 
-        // Llenar select de Marcas
         mS.innerHTML = '<option value="all">Todas las Marcas</option>';
         marcas.forEach(m => {
-            const opt = document.createElement('option');
-            opt.value = m;
-            opt.innerText = m;
-            mS.appendChild(opt);
+            mS.innerHTML += `<option value="${m}">${m}</option>`;
         });
 
-        // Configurar la lógica de filtrado al cambiar los selectores
         const applyFilters = () => {
             const filtered = allData.filter(i => 
                 (zS.value === 'all' || i.Zona === zS.value) &&
@@ -244,5 +130,3 @@ window.onload = () => {
         mS.onchange = applyFilters;
     }
 </script>
-</body>
-</html>
